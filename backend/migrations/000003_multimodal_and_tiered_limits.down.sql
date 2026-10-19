@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS media_jobs;
+DROP TABLE IF EXISTS file_chunks;
+DROP TABLE IF EXISTS files;
+ALTER TABLE messages DROP COLUMN IF EXISTS attached_file_ids;
+ALTER TABLE models DROP COLUMN IF EXISTS is_vision;
+ALTER TABLE models DROP COLUMN IF EXISTS is_multimodal;
+ALTER TABLE plans DROP COLUMN IF EXISTS hourly_requests;
+ALTER TABLE plans DROP COLUMN IF EXISTS weekly_requests;
+ALTER TABLE plans DROP COLUMN IF EXISTS max_file_size_bytes;
+ALTER TABLE plans DROP COLUMN IF EXISTS max_files_per_request;
+ALTER TABLE plans DROP COLUMN IF EXISTS allows_vision;
+ALTER TABLE plans DROP COLUMN IF EXISTS allows_document_rag;
+ALTER TABLE plans DROP COLUMN IF EXISTS allows_media;
+DELETE FROM plans WHERE id = 'ultra';

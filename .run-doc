@@ -1,0 +1,36 @@
+Keyingi safar dasturni ochib ishlash uchun quyidagi 3 ta oddiy qadamni bajarasiz:
+
+1-QADAM: Backendni ishga tushirish (1-terminalda)
+powershell
+cd c:\Users\user\Desktop\document-workspace\backend
+go run ./cmd/api
+(Server 8080-portda bazaga ulanib ishga tushadi)
+
+2-QADAM: Telefonni Wi-Fi orqali ulash (2-terminalda)
+(Telefon va kompyuteringiz bir xil Wi-Fi tarmog'ida bo'lishi kerak)
+
+A) Odatdagi holatda (agar telefoningiz o'chib-yonmagan bo'lsa): Shunchaki quyidagilarni yozasiz:
+
+powershell
+adb connect 192.168.199.41:5555
+adb reverse tcp:8080 tcp:8080
+B) Agar telefoningiz qayta yoqilgan (reboot) bo'lsa yoki ulanmasa:
+
+Telefonni 5 soniyaga USB kabel bilan kompyuterga ulab turasiz.
+Terminalda bitta buyruq berasiz:
+powershell
+adb tcpip 5555
+Kabelni darhol sug'urib olasiz va ulanasiz:
+powershell
+adb connect 192.168.199.41:5555
+adb reverse tcp:8080 tcp:8080
+3-QADAM: Mobil ilovani ishga tushirish (Flutter)
+powershell
+cd c:\Users\user\Desktop\document-workspace\mobile
+flutter run
+Qurilmalar ro'yxati chiqsa, telefoningizni tanlaysiz (yoki u avtomatik aniqlanadi).
+
+💡 Kichik va qulay tavsiya:
+adb reverse tcp:8080 tcp:8080 buyrug'i telefoningizdagi localhost:8080 so'rovlarini Wi-Fi orqali to'g'ridan-to'g'ri kompyuterdagi backendga ulab beradi.
+Ilovangiz ichidagi Sozlamalar bo'limida biz qo'shgan Wi-Fi: 192.168.199.192 tugmasi ham bor — uni bir marta bosib qo'ysangiz, ilova to'g'ridan-to'g'ri lokal tarmoq orqali backend bilan ishlayveradi.
+11:43 PM

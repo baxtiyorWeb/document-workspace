@@ -1,0 +1,36 @@
+# Secrets and Environment Variables
+.env
+*.env.local
+*.env.*.local
+!*.env.example
+
+# Go build artifacts
+backend/api
+backend/api.exe
+backend/*.exe
+*.test
+*.out
+backend/vendor/
+
+# Flutter & Dart build artifacts
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/build/
+mobile/ios/Flutter/Generated.xcconfig
+mobile/ios/Flutter/flutter_export_environment.sh
+mobile/android/.gradle
+mobile/android/local.properties
+mobile/android/app/debug/
+mobile/android/app/profile/
+mobile/android/app/release/
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+Thumbs.db
+.DS_Store

@@ -1,0 +1,76 @@
+flutter pub add purchases_flutter purchases_ui_flutter
+SDK_API_keys=test_cIFXbSPHrdQEoAnMrJseRTRiPDP
+
+SECRET_API_KEY=sk_PoJqIvQcUQxwHxDatdftyXvmLQjro
+
+
+DOC
+
+
+import 'package:purchases_flutter/purchases_flutter.dart';
+import 'dart:io';
+
+Future<void> initializeRevenueCat() async {
+  // Platform-specific API keys
+  String apiKey;
+  if (Platform.isIOS) {
+    apiKey = 'test_cIFXbSPHrdQEoAnMrJseRTRiPDP';
+  } else if (Platform.isAndroid) {
+    apiKey = 'test_cIFXbSPHrdQEoAnMrJseRTRiPDP';
+  } else {
+    throw UnsupportedError('Platform not supported');
+  }
+
+  await Purchases.configure(PurchasesConfiguration(apiKey));
+}
+
+
+
+
+
+///
+
+
+import 'package:purchases_flutter/purchases_flutter.dart';
+
+CustomerInfo customerInfo = await Purchases.getCustomerInfo();
+final hasPro = customerInfo.entitlements.active.containsKey('cognidoc_ai_document_analyzer_and_chatbot_pro');
+
+
+
+
+
+///
+
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
+
+final paywallResult = await RevenueCatUI.presentPaywall();
+
+
+
+
+///
+
+
+import 'package:flutter/material.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
+
+class ContentView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: PaywallView(
+        onDismiss: () {
+          // Dismiss the paywall, e.g. remove the view, navigate to another screen.
+        },
+      ),
+    );
+  }
+}
+
+
+
+
+
+
+
