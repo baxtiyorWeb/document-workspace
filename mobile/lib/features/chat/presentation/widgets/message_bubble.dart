@@ -14,6 +14,7 @@ class MessageBubble extends StatefulWidget {
   final VoidCallback? onCancelEdit;
   final Function(String newText)? onSaveEdit;
   final VoidCallback? onRetry;
+  final Future<void> Function(String reason, String comment)? onReport;
 
   const MessageBubble({
     super.key,
@@ -24,6 +25,7 @@ class MessageBubble extends StatefulWidget {
     this.onCancelEdit,
     this.onSaveEdit,
     this.onRetry,
+    this.onReport,
   });
 
   @override
@@ -80,6 +82,138 @@ class _MessageBubbleState extends State<MessageBubble> {
       return;
     }
     widget.onSaveEdit?.call(trimmed);
+  }
+
+  void _showReportDialog(BuildContext context) {
+    if (widget.onReport == null) return;
+    String selectedReason = 'harmful_content';
+    final commentController = TextEditingController();
+
+    final reasons = [
+      {'key': 'harmful_content', 'label': 'Zararli yoki xavfli kontent'},
+      {'key': 'offensive_content', 'label': 'Haqoratomuz yoki odobsiz javob'},
+      {'key': 'inaccurate_content', 'label': 'Noto\'g\'ri yoki chalg\'ituvchi ma\'lumot'},
+      {'key': 'copyright_violation', 'label': 'Mualliflik huquqining buzilishi'},
+      {'key': 'other', 'label': 'Boshqa muammo'},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.flag_outlined, color: AppColors.error, size: 22),
+                SizedBox(width: 8),
+                Text('AI javobi ustidan shikoyat', style: TextStyle(fontSize: 16)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ushbu AI xabari qanday qoidabuzarlikka ega?',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 12),
+                  ...reasons.map((r) {
+                    final isSelected = selectedReason == r['key'];
+                    return InkWell(
+                      onTap: () {
+                        setDialogState(() {
+                          selectedReason = r['key']!;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_off,
+                              size: 18,
+                              color: isSelected ? AppColors.primary : Colors.grey,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                r['label']!,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: commentController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      hintText: 'Qo\'shimcha izoh (ixtiyoriy)...',
+                      hintStyle: const TextStyle(fontSize: 12),
+                      filled: true,
+                      fillColor: isDark
+                          ? const Color(0xFF1E2530)
+                          : const Color(0xFFF1F5F9),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.all(10),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Bekor qilish'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  try {
+                    await widget.onReport!(selectedReason, commentController.text.trim());
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Shikoyat qabul qilindi. Moderatsiya ko\'rib chiqadi.'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Shikoyat yuborishda xatolik yuz berdi'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Yuborish'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -534,7 +668,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                       const SizedBox(width: 8),
                     ],
 
-                    if (widget.message.content.isNotEmpty)
+                    if (widget.message.content.isNotEmpty) ...[
                       Semantics(
                         label: 'Xabarni nusxalash',
                         button: true,
@@ -555,6 +689,27 @@ class _MessageBubbleState extends State<MessageBubble> {
                           ),
                         ),
                       ),
+                      if (widget.onReport != null && !widget.message.isStreaming) ...[
+                        const SizedBox(width: 8),
+                        Semantics(
+                          label: 'Shikoyat qilish',
+                          button: true,
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.flag_outlined,
+                              size: 15,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary.withOpacity(0.7)
+                                  : AppColors.lightTextSecondary.withOpacity(0.7),
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Shikoyat qilish',
+                            onPressed: () => _showReportDialog(context),
+                          ),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ],

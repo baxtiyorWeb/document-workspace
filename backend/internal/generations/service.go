@@ -36,7 +36,7 @@ type Service struct {
 
 	mu        sync.RWMutex
 	cancels   map[string]context.CancelFunc
-	completed map[string]bool
+	completed map[string]time.Time
 }
 
 // NewService creates a new generations service with AI Gateway, files, and Quota enforcement.
@@ -58,7 +58,7 @@ func NewService(
 		router:       router,
 		quotaService: quotaService,
 		cancels:      make(map[string]context.CancelFunc),
-		completed:    make(map[string]bool),
+		completed:    make(map[string]time.Time),
 	}
 }
 
@@ -72,14 +72,24 @@ func (s *Service) unregisterCancel(genID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.cancels, genID)
-	s.completed[genID] = true
+	now := time.Now()
+	s.completed[genID] = now
+	// Bounded cleanup: prevent unbounded memory leak by pruning old entries
+	if len(s.completed) > 500 {
+		cutoff := now.Add(-10 * time.Minute)
+		for id, t := range s.completed {
+			if t.Before(cutoff) || len(s.completed) > 400 {
+				delete(s.completed, id)
+			}
+		}
+	}
 }
 
 // CancelGeneration triggers cancellation for an active generation.
 func (s *Service) CancelGeneration(ctx context.Context, userID, genID string) error {
 	s.mu.RLock()
 	cancel, found := s.cancels[genID]
-	wasCompleted := s.completed[genID]
+	_, wasCompleted := s.completed[genID]
 	s.mu.RUnlock()
 
 	if s.pool == nil {

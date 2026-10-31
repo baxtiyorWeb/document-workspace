@@ -172,4 +172,31 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _storage.deleteAll();
     state = const AuthState(isLoading: false);
   }
+
+  /// Permanently deletes the user account and purges local credentials (Google Play requirement)
+  Future<bool> deleteAccount() async {
+    final token = state.accessToken;
+    if (token == null) return false;
+
+    state = state.copyWith(isLoading: true, clearError: true);
+    final client = ApiClient(
+      getBaseUrl: _getBaseUrl,
+      getAccessToken: () => token,
+    );
+
+    try {
+      await client.delete('/api/v1/me');
+      // Reset RevenueCat identity
+      RevenueCatService.instance.logOut();
+      await _storage.deleteAll();
+      state = const AuthState(isLoading: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Hisobni o\'chirishda xatolik: $e',
+      );
+      return false;
+    }
+  }
 }

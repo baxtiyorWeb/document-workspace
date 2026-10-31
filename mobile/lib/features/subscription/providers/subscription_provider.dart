@@ -203,6 +203,9 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
     }
   }
 
+  /// Alias for restore()
+  Future<bool> restorePurchases() => restore();
+
   /// Manually activates Pro subscription via backend synchronization (Card / Sandbox / Test purchase)
   Future<bool> purchaseManual({
     required String productId,

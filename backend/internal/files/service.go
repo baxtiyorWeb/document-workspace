@@ -83,84 +83,100 @@ func (s *Service) ProcessUpload(
 		}
 	}
 
-	// 3. Read remaining file content & calculate SHA256
-	hasher := sha256.New()
-	hasher.Write(headerBuf)
-
-	var fullBuf bytes.Buffer
-	fullBuf.Write(headerBuf)
-
-	teeReader := io.TeeReader(reader, hasher)
-	written, err := io.Copy(&fullBuf, teeReader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read full file: %w", err)
-	}
-
-	totalSize := int64(n) + written
-	hashStr := hex.EncodeToString(hasher.Sum(nil))
-
-	// 4. Save to safe storage path (Path Traversal Protection)
+	// 3. Save to safe storage path via disk streaming (Path Traversal Protection & Memory Safety)
 	cleanName := filepath.Base(filename)
 	cleanName = strings.ReplaceAll(cleanName, " ", "_")
 	userDir := filepath.Join(s.storageDir, userID)
 	_ = os.MkdirAll(userDir, 0755)
 
+	tmpFile, err := os.CreateTemp(userDir, "upload_*.tmp")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temporary upload file: %w", err)
+	}
+	defer func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name()) // Clean up if rename didn't happen
+	}()
+
+	hasher := sha256.New()
+	hasher.Write(headerBuf)
+	if _, err := tmpFile.Write(headerBuf); err != nil {
+		return nil, fmt.Errorf("failed to write header to storage: %w", err)
+	}
+
+	teeReader := io.TeeReader(reader, hasher)
+	written, err := io.Copy(tmpFile, teeReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stream file to storage: %w", err)
+	}
+
+	totalSize := int64(n) + written
+	hashStr := hex.EncodeToString(hasher.Sum(nil))
+	_ = tmpFile.Close()
+
 	fileID := fmt.Sprintf("%d_%s", time.Now().UnixNano(), hashStr[:8])
 	targetPath := filepath.Join(userDir, fmt.Sprintf("%s_%s", fileID, cleanName))
 
-	if err := os.WriteFile(targetPath, fullBuf.Bytes(), 0644); err != nil {
-		return nil, fmt.Errorf("failed to write file to storage: %w", err)
+	if err := os.Rename(tmpFile.Name(), targetPath); err != nil {
+		return nil, fmt.Errorf("failed to finalize storage file: %w", err)
 	}
 
-	// 5. Extract text content based on file type with page tracking
+	// 4. Extract text content based on file type with page tracking
 	var extractedText string
 	var structuredChunks []StructuredChunk
 
-	switch fileType {
-	case FileTypeDOCX:
-		docText, err := ExtractDocxContent(fullBuf.Bytes())
+	// Read file for text extraction only if it's a parseable document type
+	if fileType == FileTypeDOCX || fileType == FileTypeXLSX || fileType == FileTypePPTX || fileType == FileTypePDF || fileType == FileTypeText {
+		fileBytes, err := os.ReadFile(targetPath)
 		if err == nil {
-			extractedText = docText
-			structuredChunks = ChunkDocumentPages([]string{extractedText}, 1800, 200)
-		}
-	case FileTypeXLSX:
-		xlsxText, sheetList, err := ExtractXLSXContent(fullBuf.Bytes())
-		if err == nil {
-			extractedText = xlsxText
-			structuredChunks = ChunkDocumentPages(sheetList, 1800, 200)
-		}
-	case FileTypePPTX:
-		pptxText, slideList, err := ExtractPPTXContent(fullBuf.Bytes())
-		if err == nil {
-			extractedText = pptxText
-			structuredChunks = ChunkDocumentPages(slideList, 1800, 200)
-		}
-	case FileTypePDF:
-		pdfText, pageList, err := ExtractPDFContent(fullBuf.Bytes())
-		if err == nil {
-			extractedText = pdfText
-			structuredChunks = ChunkDocumentPages(pageList, 1800, 200)
-		}
-	case FileTypeText:
-		lower := strings.ToLower(filename)
-		if strings.HasSuffix(lower, ".csv") {
-			csvText, err := ExtractCSVContent(fullBuf.Bytes())
-			if err == nil {
-				extractedText = csvText
-			} else {
-				extractedText = string(fullBuf.Bytes())
+			switch fileType {
+			case FileTypeDOCX:
+				docText, err := ExtractDocxContent(fileBytes)
+				if err == nil {
+					extractedText = docText
+					structuredChunks = ChunkDocumentPages([]string{extractedText}, 1800, 200)
+				}
+			case FileTypeXLSX:
+				xlsxText, sheetList, err := ExtractXLSXContent(fileBytes)
+				if err == nil {
+					extractedText = xlsxText
+					structuredChunks = ChunkDocumentPages(sheetList, 1800, 200)
+				}
+			case FileTypePPTX:
+				pptxText, slideList, err := ExtractPPTXContent(fileBytes)
+				if err == nil {
+					extractedText = pptxText
+					structuredChunks = ChunkDocumentPages(slideList, 1800, 200)
+				}
+			case FileTypePDF:
+				pdfText, pageList, err := ExtractPDFContent(fileBytes)
+				if err == nil {
+					extractedText = pdfText
+					structuredChunks = ChunkDocumentPages(pageList, 1800, 200)
+				}
+			case FileTypeText:
+				lower := strings.ToLower(filename)
+				if strings.HasSuffix(lower, ".csv") {
+					csvText, rowList, err := ExtractCSVContent(fileBytes)
+					if err == nil {
+						extractedText = csvText
+						structuredChunks = ChunkDocumentPages(rowList, 1800, 200)
+					}
+				} else if strings.HasSuffix(lower, ".json") {
+					jsonText, err := ExtractJSONContent(fileBytes)
+					if err == nil {
+						extractedText = jsonText
+						structuredChunks = ChunkDocumentPages([]string{extractedText}, 1800, 200)
+					}
+				} else {
+					plainText, err := ExtractTextContent(fileBytes)
+					if err == nil {
+						extractedText = plainText
+						structuredChunks = ChunkDocumentPages([]string{extractedText}, 1800, 200)
+					}
+				}
 			}
-		} else if strings.HasSuffix(lower, ".json") {
-			jsonText, err := ExtractJSONContent(fullBuf.Bytes())
-			if err == nil {
-				extractedText = jsonText
-			} else {
-				extractedText = string(fullBuf.Bytes())
-			}
-		} else {
-			extractedText = string(fullBuf.Bytes())
 		}
-		structuredChunks = ChunkDocumentPages([]string{extractedText}, 1800, 200)
 	}
 
 	// 6. Persist to database
