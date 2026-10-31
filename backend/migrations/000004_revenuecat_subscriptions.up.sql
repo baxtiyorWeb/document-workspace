@@ -16,6 +16,11 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS store VARCHAR(32) DEFAULT 'pl
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS environment VARCHAR(32) DEFAULT 'PRODUCTION';
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS raw_data JSONB DEFAULT '{}';
 
+-- 3.1 Update status CHECK constraint to allow pending_verification
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_status_check;
+ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_status_check 
+    CHECK (status IN ('active', 'on_trial', 'paused', 'past_due', 'unpaid', 'cancelled', 'expired', 'pending_verification'));
+
 -- 4. Create indexes for high-performance lookup
 CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_rc_orig_trans_id 
     ON subscriptions (original_transaction_id) 

@@ -16,13 +16,12 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final authState = ref.watch(authProvider);
   final baseUrl = ref.watch(apiBaseUrlProvider);
-  final selectedModel = ref.watch(selectedModelIdProvider);
 
   return ChatNotifier(
-    apiClient: apiClient,
+    apiClient: apiClient,     
     token: authState.accessToken,
     baseUrl: baseUrl,
-    selectedModel: selectedModel,
+    getSelectedModel: () => ref.read(selectedModelIdProvider),
     onConversationUpdated: (convId, time, title) {
       ref
           .read(conversationsProvider.notifier)
@@ -41,7 +40,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   final ApiClient apiClient;
   final String? token;
   final String baseUrl;
-  final String selectedModel;
+  final String Function() getSelectedModel;
   final void Function(String convId, DateTime time, String? title)
   onConversationUpdated;
   final Future<String?> Function() onCreateConversation;
@@ -56,7 +55,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     required this.apiClient,
     required this.token,
     required this.baseUrl,
-    required this.selectedModel,
+    required this.getSelectedModel,
     required this.onConversationUpdated,
     required this.onCreateConversation,
   }) : super(const ChatState());
@@ -327,7 +326,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     final requestBody = <String, dynamic>{
       'message': prompt,
-      'model_id': selectedModel,
+      'model_id': getSelectedModel(),
       if (fileIds.isNotEmpty) 'file_ids': fileIds,
     };
 
@@ -532,6 +531,20 @@ class ChatNotifier extends StateNotifier<ChatState> {
       messages: list,
       isGenerating: false,
       activeGenerationId: null,
+    );
+  }
+
+  Future<void> reportMessage({
+    required String messageId,
+    required String reason,
+    String? comment,
+  }) async {
+    await apiClient.post(
+      '/api/v1/messages/$messageId/report',
+      body: {
+        'reason': reason,
+        'comment': comment ?? '',
+      },
     );
   }
 

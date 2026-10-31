@@ -412,6 +412,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                         .read(chatProvider.notifier)
                                         .retryAssistantResponse(msg.id)
                                     : null,
+                                onReport: msg.isAssistant
+                                    ? (reason, comment) => ref
+                                        .read(chatProvider.notifier)
+                                        .reportMessage(
+                                          messageId: msg.id,
+                                          reason: reason,
+                                          comment: comment,
+                                        )
+                                    : null,
                               ),
                             );
                           },

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -155,7 +156,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     environment VARCHAR(32) DEFAULT 'PRODUCTION',
     raw_data JSONB DEFAULT '{}',
     plan_id VARCHAR(32) NOT NULL DEFAULT 'pro' REFERENCES plans(id),
-    status VARCHAR(32) NOT NULL CHECK (status IN ('active', 'on_trial', 'paused', 'past_due', 'unpaid', 'cancelled', 'expired')),
+    status VARCHAR(32) NOT NULL CHECK (status IN ('active', 'on_trial', 'paused', 'past_due', 'unpaid', 'cancelled', 'expired', 'pending_verification')),
     renews_at TIMESTAMPTZ,
     ends_at TIMESTAMPTZ,
     trial_ends_at TIMESTAMPTZ,
@@ -173,6 +174,8 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS product_id VARCHAR(128);
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS store VARCHAR(32) DEFAULT 'play_store';
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS environment VARCHAR(32) DEFAULT 'PRODUCTION';
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS raw_data JSONB DEFAULT '{}';
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_status_check;
+ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_status_check CHECK (status IN ('active', 'on_trial', 'paused', 'past_due', 'unpaid', 'cancelled', 'expired', 'pending_verification'));
 CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_rc_orig_trans_id ON subscriptions(original_transaction_id) WHERE original_transaction_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS usage_ledger (
@@ -295,6 +298,19 @@ CREATE TABLE IF NOT EXISTS media_jobs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS message_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    reason VARCHAR(64) NOT NULL,
+    comment TEXT,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_message_reports_user_id ON message_reports(user_id);
+CREATE INDEX IF NOT EXISTS idx_message_reports_message_id ON message_reports(message_id);
+CREATE INDEX IF NOT EXISTS idx_message_reports_status ON message_reports(status);
+
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attached_file_ids UUID[] DEFAULT '{}';
 `
 
@@ -400,12 +416,17 @@ func main() {
 	r.Get("/health/live", healthHandler.Live)
 	r.Get("/health/ready", healthHandler.Ready)
 
+	authRateLimiter := middleware.NewIPRateLimiter(15, 1*time.Minute)
+
 	// API v1
 	r.Route("/api/v1", func(api chi.Router) {
-		// Public Auth
-		api.Post("/auth/register", authHandler.Register)
-		api.Post("/auth/login", authHandler.Login)
-		api.Post("/auth/refresh", authHandler.Refresh)
+		// Public Auth with Rate Limiting (Brute-force protection)
+		api.Group(func(authRouter chi.Router) {
+			authRouter.Use(authRateLimiter.Limit)
+			authRouter.Post("/auth/register", authHandler.Register)
+			authRouter.Post("/auth/login", authHandler.Login)
+			authRouter.Post("/auth/refresh", authHandler.Refresh)
+		})
 		api.Post("/auth/logout", authHandler.Logout)
 
 		// Public Plans & RevenueCat Webhooks

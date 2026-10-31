@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -42,13 +43,13 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _showDeleteAccountDialog(BuildContext context) {
+  void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Hisobni o\'chirish'),
+        title: const Text('Hisobni butunlay o\'chirish'),
         content: const Text(
-          'Hisobingiz va barcha ma\'lumotlaringiz butunlay o\'chiriladi. Bu amalni ortga qaytarib bo\'lmaydi.',
+          'Hisobingiz, barcha suhbatlaringiz, yuklangan fayllaringiz va ma\'lumotlaringiz butunlay o\'chiriladi. Bu amalni ortga qaytarib bo\'lmaydi.',
         ),
         actions: [
           TextButton(
@@ -60,15 +61,30 @@ class ProfileScreen extends ConsumerWidget {
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Xavfsizlik yuzasidan qo\'llab-quvvatlash xizmatiga murojaat qiling.'),
-                ),
-              );
+              final messenger = ScaffoldMessenger.of(context);
+              final success =
+                  await ref.read(authProvider.notifier).deleteAccount();
+              if (success) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    backgroundColor: AppColors.primary,
+                    content: Text(
+                      'Hisobingiz va barcha ma\'lumotlaringiz muvaffaqiyatli o\'chirildi.',
+                    ),
+                  ),
+                );
+              } else {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    backgroundColor: Colors.red,
+                    content: Text('Hisobni o\'chirishda xatolik yuz berdi.'),
+                  ),
+                );
+              }
             },
-            child: const Text('O\'chirish'),
+            child: const Text('Ha, o\'chirilsin'),
           ),
         ],
       ),
@@ -414,6 +430,54 @@ class ProfileScreen extends ConsumerWidget {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(
+                    Icons.privacy_tip_outlined,
+                    size: 20,
+                  ),
+                  title: const Text(
+                    'Maxfiylik siyosati (Privacy Policy)',
+                    style: TextStyle(fontSize: 13.5),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  onTap: () {
+                    Clipboard.setData(
+                      const ClipboardData(
+                        text: 'https://cognidoc.ai/privacy-policy',
+                      ),
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Maxfiylik siyosati havolasi nusxalandi (https://cognidoc.ai/privacy-policy)'),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
+                    Icons.description_outlined,
+                    size: 20,
+                  ),
+                  title: const Text(
+                    'Foydalanish shartlari (Terms of Service)',
+                    style: TextStyle(fontSize: 13.5),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  onTap: () {
+                    Clipboard.setData(
+                      const ClipboardData(
+                        text: 'https://cognidoc.ai/terms',
+                      ),
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Foydalanish shartlari havolasi nusxalandi (https://cognidoc.ai/terms)'),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
                     Icons.delete_outline_rounded,
                     color: Colors.grey,
                     size: 20,
@@ -425,7 +489,7 @@ class ProfileScreen extends ConsumerWidget {
                       color: Colors.grey,
                     ),
                   ),
-                  onTap: () => _showDeleteAccountDialog(context),
+                  onTap: () => _showDeleteAccountDialog(context, ref),
                 ),
               ],
             ),

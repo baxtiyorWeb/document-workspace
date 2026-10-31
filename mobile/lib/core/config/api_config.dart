@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,12 +10,19 @@ final apiBaseUrlProvider = StateNotifierProvider<ApiBaseUrlNotifier, String>((
 
 class ApiBaseUrlNotifier extends StateNotifier<String> {
   static const _prefKey = 'custom_api_base_url';
+  static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
 
   ApiBaseUrlNotifier() : super(_defaultBaseUrl) {
     _loadSavedUrl();
   }
 
   static String get _defaultBaseUrl {
+    if (_envBaseUrl.isNotEmpty) {
+      return _envBaseUrl.trim();
+    }
+    if (kReleaseMode) {
+      return 'https://api.cognidoc.ai';
+    }
     // http://localhost:8080 works for Web, Desktop, and physical Android devices via `adb reverse tcp:8080 tcp:8080`
     return 'http://localhost:8080';
   }
